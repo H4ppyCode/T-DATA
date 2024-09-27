@@ -1,3 +1,15 @@
+## How to setup env
+``docker-comopose up -d``
+
+``cd crypto-kafka/``
+
+``python crypto_producer.py``
+## start park service manually
+``docker-compose exec spark-consumer spark-submit --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.4.0 /opt/bitnami/python/src/spark/spark_consumer.py``
+
+## ui SERVICES 
+http://localhost:8082 -> Spark 
+http://localhost:8081 -> Kafka
 ## Stacks uses
 ![Python](https://img.shields.io/badge/Python-FFD43B?style=for-the-badge&logo=python&logoColor=blue)
 ![Docker](https://img.shields.io/badge/Docker-2CA5E0?style=for-the-badge&logo=docker&logoColor=white)

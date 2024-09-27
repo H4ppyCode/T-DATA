@@ -5,3 +5,4 @@ kafka-python
 requests
 six
 kafka-python-ng
+pyspark

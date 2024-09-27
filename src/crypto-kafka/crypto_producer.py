@@ -17,14 +17,17 @@ def on_send_success(record_metadata):
 def on_send_error(excp):
     print(f"Error sending message: {excp}")
 
-def main():
-    producer = KafkaProducer(
+def create_producer():
+    return KafkaProducer(
         bootstrap_servers=['localhost:9092'],
         value_serializer=lambda v: json.dumps(v).encode('utf-8'),
         linger_ms=30000,  # increased linger_ms value to 30 seconds
         retries=5,
         retry_backoff_ms=100  # added retry backoff to handle temporary errors
     )
+
+def main():
+    producer = create_producer()
     topic = 'crypto_prices'
 
     while True:
@@ -36,9 +39,9 @@ def main():
             print(f"Sent data: {crypto_data}")
         except KafkaError as e:
             print(f"Error sending message: {e}")
-        finally:
-            producer.close()
-        time.sleep(300)
+            if 'RecordAccumulator is closed' in str(e):
+                producer = create_producer()  # Reinitialize the producer
+        time.sleep(20)
 
 if __name__ == "__main__":
     main()

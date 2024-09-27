@@ -3,12 +3,11 @@ version: "3"
 services:
   zookeeper:
     image: docker.io/bitnami/zookeeper
-    ports:
-      - "2181:2181"
     volumes:
       - "zookeeper_data:/bitnami"
     environment:
       - ALLOW_ANONYMOUS_LOGIN=yes
+
   kafka:
     image: docker.io/bitnami/kafka
     ports:
@@ -23,7 +22,8 @@ services:
       - KAFKA_CFG_ADVERTISED_LISTENERS=CLIENT://kafka:9093,EXTERNAL://localhost:9092
       - KAFKA_CFG_INTER_BROKER_LISTENER_NAME=CLIENT
     depends_on:
-      - kafka-ui
+      - zookeeper
+
   kafka-ui:
     image: provectuslabs/kafka-ui
     hostname: kafka-ui
@@ -36,6 +36,38 @@ services:
       DYNAMIC_CONFIG_ENABLED: "true"
       KAFKA_CLUSTERS_0_NAME: kafkacluster
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: "kafka:9093,localhost:9093,localhost:9092,kafka:9092"
+
+  spark-consumer:
+    image: bitnami/spark:latest
+    environment:
+      - VIRTUAL_ENV=/opt/bitnami/python
+      - PROJECT_DIR=/opt/bitnami/python/src/spark
+    volumes:
+      - ./src/spark:/opt/bitnami/python/src/spark
+    depends_on:
+      - kafka
+      - zookeeper
+
+  spark-master:
+    image: bitnami/spark:latest
+    environment:
+      - SPARK_MODE=master
+    volumes:
+      - ./src/spark:/opt/bitnami/python/src/spark
+    ports:
+      - "7077:7077"
+      - "8081:8080"
+    hostname: spark-master
+
+  spark-worker:
+    image: bitnami/spark:latest
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER_URL=spark://spark-master:7077
+    depends_on:
+      - spark-master
+    ports:
+      - "8082:8081"
 
 volumes:
   zookeeper_data:
