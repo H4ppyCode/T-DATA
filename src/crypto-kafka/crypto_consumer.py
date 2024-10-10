@@ -5,7 +5,7 @@ def main():
     consumer = KafkaConsumer(
         'crypto_prices',
         group_id='crypto-group',
-        bootstrap_servers=['localhost:9092'],
+        bootstrap_servers=['kafka:9092'],
         value_deserializer=lambda m: json.loads(m.decode('utf-8'))
     )
 

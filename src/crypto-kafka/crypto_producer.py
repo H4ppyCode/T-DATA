@@ -25,13 +25,20 @@ def on_send_error(excp):
     print(f"Error sending message: {excp}")
 
 def create_producer():
-    return KafkaProducer(
-        bootstrap_servers=['localhost:9092'],
-        value_serializer=lambda v: json.dumps(v).encode('utf-8'),
-        linger_ms=30000,  # increased linger_ms value to 30 seconds
-        retries=5,
-        retry_backoff_ms=100  # added retry backoff to handle temporary errors
-    )
+    try:
+        producer = KafkaProducer(
+            bootstrap_servers=['kafka:9092'],
+            value_serializer=lambda v: json.dumps(v).encode('utf-8'),
+            linger_ms=30000,
+            retries=5,
+            retry_backoff_ms=100
+        )
+        print("Kafka producer created successfully")
+        return producer
+    except KafkaError as e:
+        print(f"Failed to create Kafka producer: {e}")
+        raise
+
 @REQUEST_TIME.time()  # Measure the time taken by this function
 def main():
     producer = create_producer()
