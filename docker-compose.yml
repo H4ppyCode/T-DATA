@@ -56,7 +56,7 @@ services:
       - ./src/spark:/opt/bitnami/python/src/spark
     ports:
       - "7077:7077"
-      - "8081:8081"
+      - "8081:8080"
     hostname: spark-master
 
   spark-worker:
@@ -67,7 +67,17 @@ services:
     depends_on:
       - spark-master
     ports:
-      - "8082:8082"
+      - "8082:8081"
+
+  crypto-producer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      - kafka
+      - zookeeper
+    ports:
+      - "8000:8000"
 
   prometheus:
     image: prom/prometheus:latest
@@ -78,22 +88,21 @@ services:
     ports:
       - "9090:9090"
 
-  crypto-producer:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    depends_on:
-      - kafka
-      - zookeeper
-      - spark-consumer
-      - spark-master
-      - spark-worker
+  grafana:
+    image: grafana/grafana:latest
     ports:
-      - "8000:8000"
-
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
 
 volumes:
   zookeeper_data:
     driver: local
   kafka_data:
+    driver: local
+  grafana_data:
     driver: local
