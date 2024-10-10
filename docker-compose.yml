@@ -56,7 +56,7 @@ services:
       - ./src/spark:/opt/bitnami/python/src/spark
     ports:
       - "7077:7077"
-      - "8081:8080"
+      - "8081:8081"
     hostname: spark-master
 
   spark-worker:
@@ -67,7 +67,14 @@ services:
     depends_on:
       - spark-master
     ports:
-      - "8082:8081"
+      - "8082:8082"
+
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
 
 volumes:
   zookeeper_data:

@@ -1,5 +1,5 @@
 ## How to setup env
-``docker-comopose up -d``
+``docker compose up -d``
 
 ``cd crypto-kafka/``
 

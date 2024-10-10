@@ -6,3 +6,4 @@ requests
 six
 kafka-python-ng
 pyspark
+prometheus_client
