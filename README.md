@@ -3,11 +3,10 @@
 ](https://www.notion.so/CRYPTO-VIZ-DATA-ffabd7eb239d4f50b5268836eeabd29d?pvs=4)
 
 ## How to setup env
+``pip install -r requirement.txt``
+
 ``docker compose up -d``
 
-``cd crypto-kafka/``
-
-``python crypto_producer.py``
 ## start park service manually
 ``docker-compose exec spark-consumer spark-submit --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.4.0 /opt/bitnami/python/src/spark/spark_consumer.py``
 
