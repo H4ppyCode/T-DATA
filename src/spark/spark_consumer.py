@@ -1,5 +1,5 @@
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import from_json, col
+from pyspark.sql.functions import from_json, col, cast
 from pyspark.sql.types import StructType, StructField, FloatType
 
 # Define the schema for the incoming data
@@ -25,7 +25,7 @@ df = spark.readStream \
     .load()
 
 # Convert the value column to string
-df = df.selectExpr("CAST(key AS STRING)", "CAST(value AS STRING)")
+df = df.select(cast(col("value"), "string"), cast(col("key"), "string"))
 
 # Parse the JSON data and apply the schema
 df = df.select(from_json(col("value"), schema).alias("data"))
