@@ -17,4 +17,4 @@ COPY src/crypto-kafka/crypto_producer.py .
 EXPOSE 8000
 
 # Définir la commande par défaut pour exécuter le script
-CMD ["sh", "-c", "sleep 5 && python -u crypto_producer.py"]
+CMD ["sh", "-c", "sleep 10 && python -u crypto_producer.py"]

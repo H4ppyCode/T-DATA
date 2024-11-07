@@ -25,14 +25,14 @@ df = spark.readStream \
     .load()
 
 # Convert the value column to string
-df = df.select(cast(col("value"), "string"), cast(col("key"), "string"))
-
-# Parse the JSON data and apply the schema
-df = df.select(from_json(col("value"), schema).alias("data"))
+df = df.select(from_json(col("value").cast("string"), schema).alias("data"))
 
 # Function to print each batch of data
-def print_batch(df, epoch_id):
-    df.select("data.*").show(truncate=False)
+def print_batch(batch_df, epoch_id):
+    batch_df.select(
+        col("data.bitcoin.usd").alias("bitcoin_usd"),
+        col("data.ethereum.usd").alias("ethereum_usd")
+    ).show(truncate=False)
 
 # Write the data to the console and print each batch
 query = df.writeStream \
