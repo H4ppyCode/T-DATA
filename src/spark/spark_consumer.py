@@ -12,15 +12,17 @@ schema = StructType([
     ]), True)
 ])
 
-# Initialize Spark session
+# Initialize Spark session with Kafka package
 spark = SparkSession.builder \
     .appName("KafkaSparkConsumer") \
+    .master("spark://spark-master:7077") \
+    .config("spark.jars.packages", "org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.3") \
     .getOrCreate()
 
 # Read data from Kafka
 df = spark.readStream \
     .format("kafka") \
-    .option("kafka.bootstrap.servers", "kafka:9092,kafka:9093,localhost:9092") \
+    .option("kafka.bootstrap.servers", "kafka:9092") \
     .option("subscribe", "crypto_prices") \
     .load()
 

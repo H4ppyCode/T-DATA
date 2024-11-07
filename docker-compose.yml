@@ -35,18 +35,7 @@ services:
     environment:
       DYNAMIC_CONFIG_ENABLED: "true"
       KAFKA_CLUSTERS_0_NAME: kafkacluster
-      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: "kafka:9093,localhost:9093,localhost:9092,kafka:9092"
-
-  spark-consumer:
-    image: bitnami/spark:latest
-    environment:
-      - VIRTUAL_ENV=/opt/bitnami/python
-      - PROJECT_DIR=/opt/bitnami/python/src/spark
-    volumes:
-      - ./src/spark:/opt/bitnami/python/src/spark
-    depends_on:
-      - kafka
-      - zookeeper
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: "kafka:9092"
 
   spark-master:
     image: bitnami/spark:latest
@@ -55,19 +44,29 @@ services:
     volumes:
       - ./src/spark:/opt/bitnami/python/src/spark
     ports:
-      - "7077:7077"
-      - "8081:8080"
+      - "7077:7077" # Spark Master
+      - "8081:8080" # Spark Master WebUI
     hostname: spark-master
 
-  spark-worker:
+  spark-worker-a:
     image: bitnami/spark:latest
+    hostname: spark-worker-a
     environment:
       - SPARK_MODE=worker
       - SPARK_MASTER_URL=spark://spark-master:7077
+      - SPARK_WORKER_CORES=1 # Number of cores to use
     depends_on:
       - spark-master
-    ports:
-      - "8082:8081"
+
+  spark-worker-b:
+    image: bitnami/spark:latest
+    hostname: spark-worker-b
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER_URL=spark://spark-master:7077
+      - SPARK_WORKER_CORES=1 # Number of cores to use
+    depends_on:
+      - spark-master
 
   crypto-producer:
     build:
@@ -78,6 +77,26 @@ services:
       - zookeeper
     ports:
       - "8000:8000"
+
+  spark-consumer:
+    image: bitnami/spark:latest
+    hostname: spark-consumer
+    environment:
+      - VIRTUAL_ENV=/opt/bitnami/python
+      - PROJECT_DIR=/opt/bitnami/python/src/spark
+    volumes:
+      - ./src/spark:/opt/bitnami/python/src/spark
+    depends_on:
+      - crypto-producer
+      - kafka
+      - zookeeper
+    ports:
+      - "4040:4040" # Expose Spark UI port
+    command: >
+      /opt/bitnami/spark/bin/spark-submit
+      --master spark://spark-master:7077
+      --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.2
+      /opt/bitnami/python/src/spark/spark_consumer.py
 
   prometheus:
     image: prom/prometheus:latest
