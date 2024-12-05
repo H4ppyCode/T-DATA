@@ -31,13 +31,14 @@ df = df.select(from_json(col("value").cast("string"), schema).alias("data"))
 
 # Function to print each batch of data
 def print_batch(batch_df, epoch_id):
-    
+
     # manipulate the data
     batch_df = batch_df.withColumn("total_usd", col("data.bitcoin.usd") + col("data.ethereum.usd"))
 
     batch_df.select(
         col("data.bitcoin.usd").alias("bitcoin_usd"),
-        col("data.ethereum.usd").alias("ethereum_usd")
+        col("data.ethereum.usd").alias("ethereum_usd"),
+        col("total_usd")
     ).show(truncate=False)
 
 # Write the data to the console and print each batch
