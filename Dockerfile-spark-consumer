@@ -1,0 +1,37 @@
+# Utiliser une image Python de base
+FROM python:3.12-slim
+
+# Définir le répertoire de travail dans le conteneur
+WORKDIR /app
+
+# Installer les dépendances système nécessaires
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    openjdk-17-jdk-headless \
+    wget \
+    && rm -rf /var/lib/apt/lists/*
+
+# Définir les variables d'environnement pour Spark
+ENV SPARK_HOME=/opt/spark
+ENV PATH="$SPARK_HOME/bin:$PATH"
+
+# Télécharger et installer Spark
+RUN wget https://downloads.apache.org/spark/spark-3.5.3/spark-3.5.3-bin-hadoop3.tgz -O /tmp/spark.tgz && \
+    mkdir -p $SPARK_HOME && \
+    tar -xzf /tmp/spark.tgz --strip-components=1 -C $SPARK_HOME && \
+    rm /tmp/spark.tgz
+
+# Copier le fichier requirements.txt dans le conteneur
+COPY requirements.txt .
+
+# Installer les dépendances Python
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copier le script spark_consumer.py dans le conteneur
+COPY src/spark/spark_consumer.py .
+
+# Exposer les ports nécessaires (Spark UI et Prometheus)
+EXPOSE 4040
+EXPOSE 8001
+
+# Ajouter un délai pour attendre que Kafka soit prêt avant de lancer Spark
+CMD ["sh", "-c", "sleep 10 && $SPARK_HOME/bin/spark-submit --master spark://spark-master:7077 --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.2 /app/spark_consumer.py"]

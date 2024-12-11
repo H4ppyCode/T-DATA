@@ -79,7 +79,7 @@ services:
   crypto-producer:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile-crypto-producer
     depends_on:
       - kafka
       - zookeeper
@@ -87,24 +87,21 @@ services:
       - "8000:8000"
 
   spark-consumer:
-    image: bitnami/spark:latest
+    build:
+      context: .
+      dockerfile: Dockerfile-spark-consumer
     hostname: spark-consumer
     environment:
       - VIRTUAL_ENV=/opt/bitnami/python
-      - PROJECT_DIR=/opt/bitnami/python/src/spark
+      - PROJECT_DIR=/app
     volumes:
-      - ./src/spark:/opt/bitnami/python/src/spark
+      - ./src/spark:/app
     depends_on:
-      - crypto-producer
       - kafka
       - zookeeper
     ports:
-      - "4040:4040" # Expose Spark UI port
-    command: >
-      /opt/bitnami/spark/bin/spark-submit
-      --master spark://spark-master:7077
-      --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.2
-      /opt/bitnami/python/src/spark/spark_consumer.py
+      - "4040:4040" # Spark UI port
+      - "8001:8001"
 
   prometheus:
     image: prom/prometheus:latest
