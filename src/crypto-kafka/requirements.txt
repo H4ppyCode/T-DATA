@@ -1,0 +1,6 @@
+dacite
+six
+kafka-python
+kafka-python-ng
+prometheus_client
+pycoingecko
