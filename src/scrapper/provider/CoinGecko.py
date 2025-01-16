@@ -16,13 +16,16 @@ class CoinGecko:
         """
         ids = ','.join(coins)
         dest_currencies = ','.join(currencies)
-        return self.api.get_price(ids, dest_currencies)
+        prices = self.api.get_price(ids, dest_currencies)
+        time.sleep(5)
+        return prices
 
     def get_price_24h_ago(self, coin: str = 'bitcoin', currency: str = 'usd') -> int:
         """Return the price of the requested coin 24 hours ago in the requested currency."""
         now = int(time.time())
         twenty_four_hours_ago = now - 86400
-        r = self.api.get_coin_market_chart_range_by_id(coin, currency, twenty_four_hours_ago, twenty_four_hours_ago + 3600)
+        r = self.api.get_coin_market_chart_range_by_id(coin, currency, twenty_four_hours_ago,                     twenty_four_hours_ago + 3600)
+        time.sleep(1)
         return r['prices'][0][1]
 
 
