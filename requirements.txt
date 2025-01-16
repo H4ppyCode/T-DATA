@@ -7,5 +7,3 @@ six
 kafka-python-ng
 pyspark
 prometheus_client
-fastavro
-io

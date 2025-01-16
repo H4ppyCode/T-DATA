@@ -3,10 +3,11 @@ import json
 import time
 import random
 import requests
+import fastavro
+import io
 from kafka import KafkaProducer
 from kafka.errors import KafkaError
 from prometheus_client import start_http_server, Summary, Counter
-import fastavro
 from scrapper.provider.CoinGecko import CoinGecko
 
 UP_TIME = Summary('up_time_seconds', 'Time since the producer started')
@@ -28,6 +29,7 @@ class Producer:
 
     def create_producer(self, kafka_server: str):
         try:
+            # Producteur pour JSON
             self.producer = KafkaProducer(
                 bootstrap_servers=[kafka_server],
                 value_serializer=lambda v: json.dumps(v).encode('utf-8'),
@@ -35,9 +37,17 @@ class Producer:
                 retries=5,
                 retry_backoff_ms=100
             )
-            print("Kafka producer created successfully")
+            # Producteur pour Avro
+            self.avro_producer = KafkaProducer(
+                bootstrap_servers=[kafka_server],
+                value_serializer=lambda v: v,  # Pas de sérialisation pour Avro
+                linger_ms=30000,
+                retries=5,
+                retry_backoff_ms=100
+            )
+            print("Kafka producers created successfully")
         except KafkaError as e:
-            print(f"Failed to create Kafka producer: {e}")
+            print(f"Failed to create Kafka producers: {e}")
             raise
 
     @SCRAP_TIME.time()
@@ -81,15 +91,17 @@ class Producer:
     @SEND_TIME.time()
     def send_to_topic(self, data):
         try:
+            # Envoi des données JSON
             future = self.producer.send(self.destination_topic, data)
             future.add_callback(self.on_send_success).add_errback(self.on_send_error)
             self.producer.flush()
             print(f"Sent data: {data}")
 
+            # Envoi des données Avro avec le producteur Avro
             avro_data = self.to_avro(data)
-            future_avro = self.producer.send(self.avro_topic, avro_data)
+            future_avro = self.avro_producer.send(self.avro_topic, avro_data)
             future_avro.add_callback(self.on_send_success).add_errback(self.on_send_error)
-            self.producer.flush()
+            self.avro_producer.flush()
             print(f"Sent Avro data to topic {self.avro_topic}")
 
         except KafkaError as e:
