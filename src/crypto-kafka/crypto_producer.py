@@ -1,3 +1,4 @@
+import io
 import json
 import time
 import random
@@ -5,7 +6,7 @@ import requests
 from kafka import KafkaProducer
 from kafka.errors import KafkaError
 from prometheus_client import start_http_server, Summary, Counter
-
+import fastavro
 from scrapper.provider.CoinGecko import CoinGecko
 
 UP_TIME = Summary('up_time_seconds', 'Time since the producer started')
@@ -16,14 +17,14 @@ ERRORS_SENDING = Counter('errors_sending_total', 'Total number of messages sent'
 
 
 class Producer:
-    def __init__(self, kafka_server: str = 'kafka:9092', destination_topic: str = 'crypto_prices', use_api: bool = True):
+    def __init__(self, kafka_server: str = 'kafka:9092', destination_topic: str = 'crypto_prices', avro_topic: str = 'avvro', use_api: bool = True):
         self.scrapper = CoinGecko()
         self.use_api: bool = use_api
         self.producer: KafkaProducer
         self.kafka_server: str = kafka_server
         self.create_producer(kafka_server)
         self.destination_topic: str = destination_topic
-
+        self.avro_topic: str = avro_topic
 
     def create_producer(self, kafka_server: str):
         try:
@@ -58,6 +59,25 @@ class Producer:
         prices_now['ethereum']['usd_yesterday'] = eth_24h_ago
         return prices_now
 
+    def to_avro(self, data):
+        schema = {
+            "type": "record",
+            "name": "CoinPrice",
+            "fields": [
+                {"name": "coin", "type": "string"},
+                {"name": "currency", "type": "string"},
+                {"name": "price", "type": "float"}
+            ]
+        }
+        records = [
+            {"coin": coin, "currency": currency, "price": price}
+            for coin, currencies in data.items()
+            for currency, price in currencies.items()
+        ]
+        bytes_writer = io.BytesIO()
+        fastavro.writer(bytes_writer, schema, records)
+        return bytes_writer.getvalue()
+
     @SEND_TIME.time()
     def send_to_topic(self, data):
         try:
@@ -65,6 +85,13 @@ class Producer:
             future.add_callback(self.on_send_success).add_errback(self.on_send_error)
             self.producer.flush()
             print(f"Sent data: {data}")
+
+            avro_data = self.to_avro(data)
+            future_avro = self.producer.send(self.avro_topic, avro_data)
+            future_avro.add_callback(self.on_send_success).add_errback(self.on_send_error)
+            self.producer.flush()
+            print(f"Sent Avro data to topic {self.avro_topic}")
+
         except KafkaError as e:
             print(f"Error sending message: {e}")
             if 'RecordAccumulator is closed' in str(e):
