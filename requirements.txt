@@ -7,3 +7,5 @@ six
 kafka-python-ng
 pyspark
 prometheus_client
+avro-python3
+confluent-kafka

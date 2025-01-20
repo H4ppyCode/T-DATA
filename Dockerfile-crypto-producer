@@ -8,7 +8,8 @@ WORKDIR /app
 COPY src/crypto-kafka/requirements.txt .
 
 # Installer les dépendances Python
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt \
+    && pip install --no-cache-dir confluent-kafka[avro] avro-python3
 
 # Copier le script crypto_producer.py dans le conteneur
 COPY src/ .

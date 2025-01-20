@@ -5,4 +5,5 @@ kafka-python-ng
 prometheus_client
 pycoingecko
 fastavro
-
+confluent-kafka[avro]
+avro-python3
