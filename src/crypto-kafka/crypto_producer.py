@@ -1,167 +1,159 @@
 import json
 import time
 import random
-import requests
+from confluent_kafka import avro
 from confluent_kafka.avro import AvroProducer
-from confluent_kafka.schema_registry import avro
 from kafka import KafkaProducer
 from kafka.errors import KafkaError
 from prometheus_client import start_http_server, Summary, Counter
-
 from scrapper.provider.CoinGecko import CoinGecko
 
+# Prometheus Metrics
 UP_TIME = Summary('up_time_seconds', 'Time since the producer started')
 SCRAP_TIME = Summary('scrap_time_seconds', 'Time spent processing request')
 SEND_TIME = Summary('send_time_seconds', 'Time spent processing request')
 MESSAGES_SENT = Counter('messages_sent_total', 'Total number of messages sent')
-ERRORS_SENDING = Counter('errors_sending_total', 'Total number of messages sent')
+FALLBACK_MESSAGES = Counter('fallback_messages_total', 'Total number of messages sent via fallback serialization')
+ERRORS_SENDING = Counter('errors_sending_total', 'Total number of errors while sending messages')
 
-# Définition du schéma Avro
-value_schema_str = """
+# Avro Schema for CryptoData
+CRYPTO_VALUE_SCHEMA_STR = """
 {
-    "namespace": "crypto.prices",
     "type": "record",
-    "name": "CryptoPrices",
+    "name": "CryptoDataAvro",
     "fields": [
-        {"name": "bitcoin", "type": {
-            "type": "record",
-            "name": "BitcoinPrice",
-            "fields": [
-                {"name": "usd", "type": "double"},
-                {"name": "usd_yesterday", "type": "double"}
-            ]
-        }},
-        {"name": "ethereum", "type": {
-            "type": "record",
-            "name": "EthereumPrice",
-            "fields": [
-                {"name": "usd", "type": "double"},
-                {"name": "usd_yesterday", "type": "double"}
-            ]
-        }}
+        {"name": "timestamp", "type": "long"},
+        {"name": "symbol", "type": "string"},
+        {"name": "price", "type": "double"},
+        {"name": "price_24h_ago", "type": "double"}
     ]
 }
 """
 
-import json
-import time
-from confluent_kafka import avro
-from confluent_kafka.avro import AvroProducer
-import requests
-from prometheus_client import start_http_server, Counter, Summary
-
 
 class Producer:
-    def __init__(self, bootstrap_servers, schema_registry_url, topic_name, use_api=True):
-        self.topic_name = topic_name
-        self.use_api = use_api
+    def __init__(self, kafka_server: str = 'kafka:9092', schema_registry_url: str = 'http://schema-registry:8081',
+                 avro_topic: str = 'crypto_prices', fallback_topic: str = 'crypto_prices_fallback',
+                 use_api: bool = True):
+        self.scrapper = CoinGecko()
+        self.use_api: bool = use_api
+        self.kafka_server: str = kafka_server
+        self.avro_topic: str = avro_topic
+        self.fallback_topic: str = fallback_topic
+        self.producer = None
+        self.avro_producer = None
 
-        # Définition du schéma Avro
-        value_schema_str = """
-        {
-            "type": "record",
-            "name": "CryptoData",
-            "fields": [
-                {"name": "timestamp", "type": "long"},
-                {"name": "symbol", "type": "string"},
-                {"name": "price", "type": "double"}
-            ]
-        }
-        """
+        self.create_kafka_producer(kafka_server)
+        self.create_avro_producer(schema_registry_url)
 
-        value_schema = avro.loads(value_schema_str)
-
-        # Configuration du producteur
-        producer_config = {
-            'bootstrap.servers': bootstrap_servers,
-            'schema.registry.url': schema_registry_url
-        }
-
+    def create_kafka_producer(self, kafka_server: str):
+        """Create a regular Kafka JSON producer"""
         try:
+            self.producer = KafkaProducer(
+                bootstrap_servers=[kafka_server],
+                value_serializer=lambda v: json.dumps(v).encode('utf-8'),  # Serialisation JSON
+                linger_ms=30000,
+                retries=5,
+                retry_backoff_ms=100
+            )
+            print("Kafka JSON producer created successfully!")
+        except KafkaError as e:
+            print(f"Failed to create Kafka producer: {e}")
+            raise
+
+    def create_avro_producer(self, schema_registry_url: str):
+        """Create an AvroProducer for Kafka"""
+        try:
+            value_schema = avro.loads(CRYPTO_VALUE_SCHEMA_STR)
+            producer_config = {
+                'bootstrap.servers': self.kafka_server,
+                'schema.registry.url': schema_registry_url
+            }
             self.avro_producer = AvroProducer(
                 producer_config,
                 default_value_schema=value_schema
             )
-            print("Kafka producers created successfully")
+            print("Avro producer created successfully!")
         except Exception as e:
-            print(f"Error creating Kafka producer: {e}")
+            print(f"Failed to create Avro producer: {e}")
             raise
 
-        # Métriques Prometheus
-        self.messages_sent = Counter('crypto_messages_sent', 'Number of messages sent to Kafka')
-        self.message_size = Summary('crypto_message_size_bytes', 'Size of messages in bytes')
-        self.processing_time = Summary('crypto_processing_time_seconds', 'Time spent processing message')
+    @SCRAP_TIME.time()
+    def get_crypto_data(self, use_api=True):
+        """Fetch cryptocurrency data via API or generate random data"""
+        if use_api:
+            try:
+                prices_now = self.scrapper.get_prices(['bitcoin', 'ethereum'], ['usd'])
+                btc_24h_ago = self.scrapper.get_price_24h_ago('bitcoin', 'usd')
+                eth_24h_ago = self.scrapper.get_price_24h_ago('ethereum', 'usd')
+                print("Data fetched from API")
+            except Exception as e:
+                print(f"Error fetching data from API: {e}")
+                raise
+        else:
+            # Simulated random data
+            prices_now = {
+                'bitcoin': {'usd': random.uniform(30000, 60000)},
+                'ethereum': {'usd': random.uniform(1000, 4000)}
+            }
+            btc_24h_ago = random.uniform(30000, 60000)
+            eth_24h_ago = random.uniform(1000, 4000)
+            print("Random data generated")
 
-    def get_crypto_data_from_api(self):
-        """Récupère les données crypto depuis l'API"""
-        url = "https://api.binance.com/api/v3/ticker/price"
-        params = {"symbols": '["BTCUSDT","ETHUSDT","BNBUSDT"]'}
+        # Add 24-hour prices to the data
+        prices_now['bitcoin']['usd_yesterday'] = btc_24h_ago
+        prices_now['ethereum']['usd_yesterday'] = eth_24h_ago
+        return prices_now
+
+    @SEND_TIME.time()
+    def send_to_avro(self, crypto_data):
+        """Transform and send cryptocurrency data as Avro messages"""
+        timestamp = int(time.time() * 1000)  # Current timestamp in milliseconds
         try:
-            response = requests.get(url, params=params)
-            response.raise_for_status()
-            return response.json()
+            for currency, values in crypto_data.items():
+                # Transform data to fit the Avro schema
+                message = {
+                    "timestamp": timestamp,
+                    "symbol": currency,  # e.g. "bitcoin" or "ethereum"
+                    "price": values['usd'],
+                    "price_24h_ago": values['usd_yesterday']
+                }
+                print(f"Message to send to Avro: {message}")  # Log for debugging
+
+                # Produce the message using AvroProducer
+                self.avro_producer.produce(topic=self.avro_topic, value=message)
+                self.avro_producer.flush()
+                print(f"Avro message sent successfully to topic '{self.avro_topic}': {message}")
+                MESSAGES_SENT.inc()
         except Exception as e:
-            print(f"Error fetching data from API: {e}")
-            return None
+            print(f"Error sending Avro message, falling back: {e}")
+            self.send_to_fallback(message)
 
-    def get_mock_crypto_data(self):
-        """Génère des données crypto simulées"""
-        mock_data = [
-            {"symbol": "BTCUSDT", "price": "40000.00"},
-            {"symbol": "ETHUSDT", "price": "2500.00"},
-            {"symbol": "BNBUSDT", "price": "300.00"}
-        ]
-        return mock_data
-
-    def get_crypto_data(self):
-        """Récupère les données crypto (API ou mock)"""
-        if self.use_api:
-            return self.get_crypto_data_from_api()
-        return self.get_mock_crypto_data()
-
-    def send_message(self, message):
-        """Envoie un message au topic Kafka"""
+    def send_to_fallback(self, message):
+        """Send messages to the fallback topic as JSON"""
         try:
-            self.avro_producer.produce(
-                topic=self.topic_name,
-                value=message
-            )
-            self.avro_producer.flush()
-            self.messages_sent.inc()
-            self.message_size.observe(len(str(message)))
-        except Exception as e:
-            print(f"Error sending message to Kafka: {e}")
+            self.producer.send(self.fallback_topic, message)
+            self.producer.flush()
+            FALLBACK_MESSAGES.inc()
+            print(f"Fallback message sent to topic '{self.fallback_topic}': {message}")
+        except KafkaError as e:
+            print(f"Error sending fallback message: {e}")
 
-    def start(self):
-        """Démarre le producteur"""
+    @UP_TIME.time()
+    def start(self, prometheus_port: int = 8000):
+        """Start the producer process"""
+        start_http_server(prometheus_port)  # Start Prometheus metrics server
         while True:
-            with self.processing_time.time():
-                crypto_data = self.get_crypto_data()
-                if crypto_data:
-                    timestamp = int(time.time() * 1000)
-                    for data in crypto_data:
-                        message = {
-                            'timestamp': timestamp,
-                            'symbol': data['symbol'],
-                            'price': float(data['price'])
-                        }
-                        self.send_message(message)
-            time.sleep(1)
-
-
-def main(use_api=True):
-    # Configuration
-    bootstrap_servers = 'kafka:9092'
-    schema_registry_url = 'http://schema-registry:8081'
-    topic_name = 'crypto_prices'
-
-    # Démarrage du serveur Prometheus
-    start_http_server(8000)
-
-    # Création et démarrage du producteur
-    producer = Producer(bootstrap_servers, schema_registry_url, topic_name, use_api)
-    producer.start()
+            crypto_data = self.get_crypto_data(use_api=self.use_api)
+            self.send_to_avro(crypto_data)
+            time.sleep(5)  # Wait 5 seconds before the next batch
 
 
 if __name__ == "__main__":
-    main(use_api=True)
+    producer = Producer(
+        kafka_server="kafka:9092",
+        schema_registry_url="http://schema-registry:8081",
+        avro_topic="crypto_prices",
+        fallback_topic="crypto_prices_fallback"
+    )
+    producer.start(prometheus_port=8000)
