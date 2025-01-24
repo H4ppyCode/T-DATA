@@ -77,6 +77,7 @@ services:
       - spark-master
 
   crypto-producer:
+    restart: always
     build:
       context: .
       dockerfile: Dockerfile-crypto-producer
@@ -87,6 +88,7 @@ services:
       - "8000:8000"
 
   spark-consumer:
+    restart: always
     build:
       context: .
       dockerfile: Dockerfile-spark-consumer
@@ -102,6 +104,16 @@ services:
     ports:
       - "4040:4040" # Spark UI port
       - "8001:8001"
+  
+  crypto-processed-consumer:
+    restart: always
+    build:
+      context: .
+      dockerfile: Dockerfile-crypto-consumer
+    depends_on:
+      - spark-consumer
+    ports:
+      - "8002:8002"
 
   prometheus:
     image: prom/prometheus:latest

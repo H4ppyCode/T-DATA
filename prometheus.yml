@@ -10,3 +10,7 @@ scrape_configs:
   - job_name: 'spark_consumer'
     static_configs:
       - targets: ['spark-consumer:8001']
+  
+  - job_name: 'processed_data_consumer'
+    static_configs:
+      - targets: ['crypto-processed-consumer:8002']

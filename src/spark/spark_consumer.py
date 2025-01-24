@@ -15,10 +15,12 @@ eth_value = ""
 # Define schema for incoming JSON data
 schema = StructType([
     StructField("bitcoin", StructType([
-        StructField("usd", FloatType(), True)
+        StructField("usd", FloatType(), True),
+        StructField("usd_yesterday", FloatType(), True)
     ]), True),
     StructField("ethereum", StructType([
-        StructField("usd", FloatType(), True)
+        StructField("usd", FloatType(), True),
+        StructField("usd_yesterday", FloatType(), True)
     ]), True)
 ])
 
@@ -63,21 +65,24 @@ def process_batch(batch_df, epoch_id):
     enriched_df = batch_df.select(
         col("timestamp"),
         col("data.bitcoin.usd").alias("bitcoin_usd"),
-        col("data.ethereum.usd").alias("ethereum_usd")
+        col("data.bitcoin.usd_yesterday").alias("bitcoin_usd_yesterday"),
+        col("data.ethereum.usd").alias("ethereum_usd"),
+        col("data.ethereum.usd_yesterday").alias("ethereum_usd_yesterday")
+        
     ).withColumn(
         "total_usd",
         coalesce(col("bitcoin_usd"), lit(0)) + coalesce(col("ethereum_usd"), lit(0))
     )
 
     window_spec = Window.orderBy("timestamp")
-    enriched_df = enriched_df.withColumn("btc_diff", col("bitcoin_usd") - lag("bitcoin_usd", 1).over(window_spec)) \
-        .withColumn("btc_performance", col("bitcoin_usd") / lag("bitcoin_usd", 1).over(window_spec) - 1)\
-        .withColumn("btc_growth", (col("bitcoin_usd") / lag("bitcoin_usd", 1).over(window_spec)) ** (1 / 24) - 1) \
-        .withColumn("eth_diff", col("ethereum_usd") - lag("ethereum_usd", 1).over(window_spec)) \
-        .withColumn("eth_performance", col("ethereum_usd") / lag("ethereum_usd", 1).over(window_spec) - 1)\
-        .withColumn("eth_growth", (col("ethereum_usd") / lag("ethereum_usd", 1).over(window_spec)) ** (1 / 24) - 1)
+    enriched_df = enriched_df.withColumn("btc_diff", col("bitcoin_usd") - col("bitcoin_usd_yesterday")) \
+        .withColumn("btc_performance", col("bitcoin_usd") / col("bitcoin_usd_yesterday") - 1)\
+        .withColumn("btc_growth", (col("bitcoin_usd") / col("bitcoin_usd_yesterday")) ** (1 / 24) - 1) \
+        .withColumn("eth_diff", col("ethereum_usd") - col("ethereum_usd_yesterday")) \
+        .withColumn("eth_performance", col("ethereum_usd") / col("ethereum_usd_yesterday") - 1)\
+        .withColumn("eth_growth", (col("ethereum_usd") / col("ethereum_usd_yesterday")) ** (1 / 24) - 1)
     
-    enriched_df = enriched_df.select(to_json(struct(
+    kafka_df = enriched_df.select(to_json(struct(
             col("btc_diff"),
             col("btc_performance"),
             col("btc_growth"),
@@ -88,7 +93,7 @@ def process_batch(batch_df, epoch_id):
     ).filter(col("value") != '{}' )
 
     # Print results to the console for debugging
-    enriched_df.show(truncate=False)
+    kafka_df.show(truncate=False)
 
     # Update Prometheus metric
     total_usd_value = enriched_df.agg({"total_usd": "sum"}).collect()[0][0]
@@ -97,7 +102,7 @@ def process_batch(batch_df, epoch_id):
     else:
         total_usd_gauge.set(0)
 
-    enriched_df.write\
+    kafka_df.write\
         .format("kafka") \
         .option("kafka.bootstrap.servers", "kafka:9092") \
         .option("topic", "processed_crypto_prices") \
