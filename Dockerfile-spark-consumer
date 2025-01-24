@@ -13,6 +13,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Définir les variables d'environnement pour Spark
 ENV SPARK_HOME=/opt/spark
 ENV PATH="$SPARK_HOME/bin:$PATH"
+ENV PYTHONPATH="$SPARK_HOME/python:$SPARK_HOME/python/lib/py4j-0.10.9.7-src.zip:$PYTHONPATH"
 
 # Télécharger et installer Spark
 RUN wget https://downloads.apache.org/spark/spark-3.5.4/spark-3.5.4-bin-hadoop3.tgz -O /tmp/spark.tgz && \
@@ -34,4 +35,7 @@ EXPOSE 4040
 EXPOSE 8001
 
 # Ajouter un délai pour attendre que Kafka soit prêt avant de lancer Spark
-CMD ["sh", "-c", "sleep 10 && $SPARK_HOME/bin/spark-submit --master spark://spark-master:7077 --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.2 /app/spark_consumer.py"]
+CMD ["sh", "-c", "sleep 10 && $SPARK_HOME/bin/spark-submit \
+    --master spark://spark-master:7077 \
+    --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0 \
+    /app/spark_consumer.py"]

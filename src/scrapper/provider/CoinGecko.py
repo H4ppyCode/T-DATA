@@ -1,15 +1,15 @@
 from typing import List, Dict
 from pycoingecko import CoinGeckoAPI
 
-
 import time
 
 
 class CoinGecko:
     def __init__(self):
-        self.api = CoinGeckoAPI(demo_api_key='CG-q2DSLucbpJh1nyrBQjXWPdXM')
+        self.api = CoinGeckoAPI(demo_api_key='CG-EdFM3cNN7rxHpzPiMGngNQv7')
 
-    def get_prices(self, coins: List[str] = ['bitcoin', 'ethereum'], currencies: List[str] = ['usd']) -> Dict[str, Dict[str, int]]:
+    def get_prices(self, coins: List[str] = ['bitcoin', 'ethereum'], currencies: List[str] = ['usd']) -> Dict[
+        str, Dict[str, int]]:
         """Return the prices of the requested coins in the requested currency.
         
         Example result: {'bitcoin': {'usd': 100898}, 'ethereum': {'usd': 3924.34}}
@@ -24,7 +24,8 @@ class CoinGecko:
         """Return the price of the requested coin 24 hours ago in the requested currency."""
         now = int(time.time())
         twenty_four_hours_ago = now - 86400
-        r = self.api.get_coin_market_chart_range_by_id(coin, currency, twenty_four_hours_ago,                     twenty_four_hours_ago + 3600)
+        r = self.api.get_coin_market_chart_range_by_id(coin, currency, twenty_four_hours_ago,
+                                                       twenty_four_hours_ago + 3600)
         time.sleep(1)
         return r['prices'][0][1]
 
