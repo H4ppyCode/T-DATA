@@ -62,7 +62,7 @@ services:
     environment:
       - SPARK_MODE=worker
       - SPARK_MASTER_URL=spark://spark-master:7077
-      - SPARK_WORKER_CORES=1 # Number of cores to use
+      - SPARK_WORKER_CORES=4 # Number of cores to use
     depends_on:
       - spark-master
 
@@ -72,7 +72,7 @@ services:
     environment:
       - SPARK_MODE=worker
       - SPARK_MASTER_URL=spark://spark-master:7077
-      - SPARK_WORKER_CORES=1 # Number of cores to use
+      - SPARK_WORKER_CORES=4 # Number of cores to use
     depends_on:
       - spark-master
 
